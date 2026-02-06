@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FutureStep</title>
+  <style>
+    :root { color-scheme: dark; }
+    body{
+      margin:0; background:#070a10; height:100vh;
+      display:grid; grid-template-rows:auto 1fr;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      color:#c7d2fe;
+    }
+    header{
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+      padding:10px 12px; border-bottom:1px solid #1e2a3a;
+      background:rgba(7,10,16,.88); backdrop-filter: blur(6px);
+      position:sticky; top:0; z-index:10;
+    }
+    .left,.right{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+    .pill{
+      border:1px solid #1e2a3a; border-radius:999px;
+      padding:6px 10px; font-size:13px; opacity:.95;
+      background: rgba(30,42,58,.22);
+    }
+    label{font-size:13px; opacity:.95; display:flex; align-items:center; gap:8px;}
+    input[type="color"]{ width:34px; height:24px; border:0; background:transparent; padding:0; }
+    button{
+      background:#0b1220; color:#e5e7eb; border:1px solid #1e2a3a;
+      padding:7px 11px; border-radius:12px; cursor:pointer; font-size:13px;
+    }
+    button:hover{ filter:brightness(1.12); }
+    button:disabled{ opacity:.5; cursor:not-allowed; }
+
+    main{ display:flex; align-items:center; justify-content:center; padding:10px; }
+    canvas{ border:1px solid #1e2a3a; border-radius:16px; background:#05070c; }
+
+    /* Menü-Overlay */
+    .overlay{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      background: radial-gradient(1200px 600px at 50% 0%, rgba(99,102,241,.18), transparent 60%),
+                  rgba(0,0,0,.55);
+      backdrop-filter: blur(6px);
+      z-index:20;
+    }
+    .panel{
+      width:min(880px, 92vw);
+      border:1px solid #1e2a3a;
+      background: rgba(7,10,16,.88);
+      border-radius: 22px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.55);
+      padding: 18px;
+    }
+    .titleRow{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    h1{ margin:0; font-size:22px; letter-spacing:.3px; }
+    .sub{ margin-top:6px; font-size:13px; opacity:.9; line-height:1.35; }
+    .grid{
+      margin-top:14px;
+      display:grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap:10px;
+    }
+    .lvlBtn{
+      text-align:left; padding:10px 10px;
+      border-radius:16px;
+      background: rgba(30,42,58,.25);
+      border:1px solid #1e2a3a;
+      cursor:pointer;
+      transition: transform .08s ease, filter .08s ease;
+      user-select:none;
+    }
+    .lvlBtn:hover{ transform: translateY(-1px); filter:brightness(1.15); }
+    .lvlTop{ display:flex; align-items:center; justify-content:space-between; }
+    .lvlName{ font-weight:700; font-size:14px; }
+    .badge{
+      font-size:12px; padding:2px 8px; border-radius:999px;
+      border:1px solid #1e2a3a; background: rgba(17,24,39,.6);
+      opacity:.95;
+    }
+    .done{ border-color: rgba(34,197,94,.6); background: rgba(34,197,94,.08); }
+    .done .badge{ border-color: rgba(34,197,94,.55); }
+    .muted{ opacity:.85; font-size:12px; margin-top:6px; }
+    .menuActions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; align-items:center; justify-content:space-between; }
+    .miniRow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    @media (max-width: 700px){
+      .grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="left">
+    <div class="pill"><b>FutureStep</b> — jede Taste hat <b>1.0s Delay</b></div>
+    <div class="pill">Move: <b>A/D</b> oder <b>←/→</b> | Jump: <b>Space/W/↑</b> | Dash: <b>Shift</b> oder <b>K</b> | Restart: <b>R</b> | Menü: <b>Esc</b></div>
+  </div>
+  <div class="right">
+    <label>Spielerfarbe:
+      <input id="color" type="color" value="#ffffff" />
+    </label>
+    <button id="btnMenu">Menü</button>
+    <button id="btnRestart">Restart</button>
+  </div>
+</header>
+
+<main>
+  <canvas id="c" width="960" height="540"></canvas>
+</main>
+
+<!-- Menü -->
+<div id="menu" class="overlay" style="display:flex;">
+  <div class="panel">
+    <div class="titleRow">
+      <div>
+        <h1>FutureStep — Level Auswahl</h1>
+        <div class="sub">
+          Du spielst die Zukunft: <b>jede Eingabe wird 1000ms später ausgeführt</b>.<br/>
+          Tipp: Drücke früher, als sich “richtig” anfühlt.
+        </div>
+      </div>
+      <div class="pill" id="progressText">Fortschritt: 0/10</div>
+    </div>
+
+    <div class="grid" id="levelGrid"></div>
+
+    <div class="menuActions">
+      <div class="miniRow">
+        <button id="btnPlayNext">Nächstes ungeschafftes Level spielen</button>
+        <button id="btnResetProgress">Fortschritt zurücksetzen</button>
+      </div>
+      <div class="pill">Dein Fortschritt wird automatisch gespeichert ✓</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ================== Grund-Config ==================
+  const INPUT_DELAY_MS = 1000;
+  const FIXED_DT = 1/60;
+
+  const GRAVITY = 1750;
+  const MOVE_SPEED = 265;
+  const JUMP_V = 565;
+
+  // Dash
+  const DASH_SPEED = 760;
+  const DASH_TIME = 0.12;
+  const DASH_COOLDOWN = 0.62;
+
+  // Canvas
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+
+  // UI
+  const menuEl = document.getElementById("menu");
+  const levelGrid = document.getElementById("levelGrid");
+  const progressText = document.getElementById("progressText");
+  const btnMenu = document.getElementById("btnMenu");
+  const btnRestart = document.getElementById("btnRestart");
+  const btnPlayNext = document.getElementById("btnPlayNext");
+  const btnResetProgress = document.getElementById("btnResetProgress");
+  const colorPicker = document.getElementById("color");
+
+  // Helpers
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const nowMs = ()=>performance.now();
+  function rectsOverlap(a,b){
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  // ================== Progress speichern ==================
+  const LS_KEY = "futurestep_progress_v1";
+  function loadProgress(){
+    try{
+      const raw = localStorage.getItem(LS_KEY);
+      if(!raw) return Array(10).fill(false);
+      const arr = JSON.parse(raw);
+      if(!Array.isArray(arr) || arr.length !== 10) return Array(10).fill(false);
+      return arr.map(Boolean);
+    }catch{ return Array(10).fill(false); }
+  }
+  function saveProgress(){
+    localStorage.setItem(LS_KEY, JSON.stringify(progress));
+  }
+  let progress = loadProgress(); // 10 booleans
+
+  // ================== Level Generator (10 Levels) ==================
+  // Wir bauen Levels “procedural”: gleiche Struktur, aber enger, schneller, mehr Hazards.
+  // Hindernisse = “ungute Sachen” abstrakt (toxic/shame/doubt/panic)
+  function makeLevel(i){
+    const idx = i + 1; // 1..10
+    const difficulty = idx; // linear
+    const gap = 160 - difficulty*7;                   // Plattform-Abstand wird kleiner
+    const platW = 170 - difficulty*6;                 // Plattformen werden schmaler
+    const hazardsCount = 2 + Math.floor(difficulty*0.8);
+    const moveSpeed = 140 + difficulty*28;            // moving hazards schneller
+    const pistonSpeed = 200 + difficulty*22;
+
+    // Plattform-Treppe nach rechts/oben
+    const start = { x: 70, y: 430 };
+    const platforms = [{ x:0, y:500, w:960, h:40 }];
+
+    let x = 170, y = 430;
+    for(let p=0; p<5; p++){
+      platforms.push({ x, y, w: Math.max(80, platW), h: 20 });
+      x += gap;
+      y -= 55;
+      y = clamp(y, 140, 440);
+    }
+    // Letzte Zielplattform
+    const goalY = clamp(y + 15, 90, 430);
+    const goal = { x: 880, y: goalY, w: 44, h: 80 };
+
+    // Hazards platzieren
+    const hazards = [];
+
+    // Ein paar “Boden-Stacheln” (toxic) am Anfang
+    hazards.push({ type:"toxic", x: 250, y: 480, w: 80, h: 20 });
+    if(difficulty >= 3) hazards.push({ type:"toxic", x: 430, y: 480, w: 90, h: 20 });
+
+    // Bewegende Balken (doubt)
+    for(let k=0; k<Math.floor(difficulty/2); k++){
+      const yb = 270 + (k%2)*70;
+      const minX = 200 + k*80;
+      const maxX = 900 - k*70;
+      hazards.push({
+        type:"doubt",
+        x: minX + 40,
+        y: yb,
+        w: 150 - k*10,
+        h: 16,
+        vx: (k%2===0?1:-1) * moveSpeed,
+        minX, maxX
+      });
+    }
+
+    // Pistons (panic) vertikal
+    if(difficulty >= 4){
+      hazards.push({
+        type:"panic",
+        x: 610,
+        y: 360,
+        w: 22,
+        h: 95,
+        vy: pistonSpeed,
+        minY: 220,
+        maxY: 480
+      });
+    }
+    if(difficulty >= 7){
+      hazards.push({
+        type:"panic",
+        x: 790,
+        y: 300,
+        w: 22,
+        h: 110,
+        vy: -pistonSpeed*0.9,
+        minY: 160,
+        maxY: 470
+      });
+    }
+
+    // Blink-Hazards (shame)
+    if(difficulty >= 2){
+      hazards.push({ type:"shame", x: 520, y: 480, w: 85, h: 20 });
+    }
+    if(difficulty >= 6){
+      hazards.push({ type:"shame", x: 700, y: 230, w: 90, h: 18 });
+    }
+
+    // Zusätzliche kleine toxics je nach difficulty
+    for(let t=0; t<Math.max(0, hazardsCount - hazards.length); t++){
+      const tx = 300 + t*120;
+      const ty = (t%2===0) ? 420 : 350;
+      hazards.push({ type:"toxic", x: clamp(tx, 140, 860), y: ty, w: 55, h: 18 });
+    }
+
+    return { name:`Level ${idx}`, start, goal, platforms, hazards };
+  }
+
+  const LEVELS = Array.from({length:10}, (_,i)=>makeLevel(i));
+
+  // ================== Game State ==================
+  let levelIndex = 0;
+  let level = null;
+  let state = "MENU"; // MENU | PLAY
+
+  const player = {
+    x:0,y:0,w:28,h:28,
+    vx:0,vy:0,
+    onGround:false,
+    dashTimeLeft:0,
+    dashCooldown:0,
+    facing:1,
+    color:"#ffffff",
+  };
+
+  const intent = { left:false, right:false };
+  let queue = []; // delayed input events
+
+  // Lively background particles
+  const particles = Array.from({length: 70}, () => ({
+    x: Math.random()*W,
+    y: Math.random()*H,
+    r: 0.8 + Math.random()*2.4,
+    vx: (-0.5 + Math.random()) * 28,
+    vy: (-0.5 + Math.random()) * 28,
+    phase: Math.random()*Math.PI*2
+  }));
+
+  // ================== Menu Rendering ==================
+  function updateMenu(){
+    levelGrid.innerHTML = "";
+
+    const doneCount = progress.filter(Boolean).length;
+    progressText.textContent = `Fortschritt: ${doneCount}/10`;
+
+    for(let i=0;i<10;i++){
+      const done = progress[i];
+      const d = i+1;
+      const el = document.createElement("div");
+      el.className = "lvlBtn" + (done ? " done" : "");
+      el.innerHTML = `
+        <div class="lvlTop">
+          <div class="lvlName">Level ${d}</div>
+          <div class="badge">${done ? "✓ geschafft" : "noch offen"}</div>
+        </div>
+        <div class="muted">Schwierigkeit: ${d}/10 • Delay: 1000ms</div>
+      `;
+      el.addEventListener("click", () => startLevel(i));
+      levelGrid.appendChild(el);
+    }
+
+    const next = progress.findIndex(v=>!v);
+    btnPlayNext.disabled = (next === -1);
+  }
+
+  function showMenu(){
+    state = "MENU";
+    menuEl.style.display = "flex";
+    updateMenu();
+  }
+  function hideMenu(){
+    state = "PLAY";
+    menuEl.style.display = "none";
+  }
+
+  btnMenu.addEventListener("click", showMenu);
+  btnPlayNext.addEventListener("click", () => {
+    const next = progress.findIndex(v=>!v);
+    if(next !== -1) startLevel(next);
+  });
+  btnResetProgress.addEventListener("click", () => {
+    progress = Array(10).fill(false);
+    saveProgress();
+    updateMenu();
+  });
+
+  // ================== Level / Reset ==================
+  function loadLevel(i){
+    levelIndex = clamp(i, 0, 9);
+    // clone (damit moving hazards nicht das Original verändern)
+    level = structuredClone(LEVELS[levelIndex]);
+    resetPlayer();
+    queue = [];
+  }
+
+  function resetPlayer(){
+    player.x = level.start.x;
+    player.y = level.start.y;
+    player.vx = 0; player.vy = 0;
+    player.onGround = false;
+    player.dashTimeLeft = 0;
+    player.dashCooldown = 0;
+    player.facing = 1;
+    intent.left = intent.right = false;
+  }
+
+  function restartLevel(){
+    if(state !== "PLAY") return;
+    resetPlayer();
+    queue = [];
+  }
+  btnRestart.addEventListener("click", restartLevel);
+
+  function startLevel(i){
+    loadLevel(i);
+    hideMenu();
+  }
+
+  // ================== Controls (delayed) ==================
+  colorPicker.addEventListener("input", () => player.color = colorPicker.value);
+  player.color = colorPicker.value;
+
+  function enqueue(kind){
+    queue.push({ t: nowMs() + INPUT_DELAY_MS, kind });
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if(e.code === "Escape") { showMenu(); return; }
+    if(e.code === "KeyR") { restartLevel(); return; }
+    if(state !== "PLAY") return;
+
+    if(e.code==="ArrowLeft" || e.code==="KeyA") enqueue("LEFT_DOWN");
+    if(e.code==="ArrowRight"|| e.code==="KeyD") enqueue("RIGHT_DOWN");
+
+    if(e.code==="Space"|| e.code==="KeyW"|| e.code==="ArrowUp") enqueue("JUMP");
+    if(e.code==="ShiftLeft"|| e.code==="ShiftRight"|| e.code==="KeyK") enqueue("DASH");
+  });
+
+  window.addEventListener("keyup", (e) => {
+    if(state !== "PLAY") return;
+    if(e.code==="ArrowLeft" || e.code==="KeyA") enqueue("LEFT_UP");
+    if(e.code==="ArrowRight"|| e.code==="KeyD") enqueue("RIGHT_UP");
+  });
+
+  function applyEvent(kind){
+    if(kind==="LEFT_DOWN"){ intent.left=true; player.facing=-1; }
+    if(kind==="RIGHT_DOWN"){ intent.right=true; player.facing=1; }
+    if(kind==="LEFT_UP") intent.left=false;
+    if(kind==="RIGHT_UP") intent.right=false;
+
+    if(kind==="JUMP"){
+      if(player.onGround){
+        player.vy = -JUMP_V;
+        player.onGround = false;
+      }
+    }
+
+    if(kind==="DASH"){
+      if(player.dashCooldown <= 0 && player.dashTimeLeft <= 0){
+        player.dashTimeLeft = DASH_TIME;
+        player.dashCooldown = DASH_COOLDOWN;
+
+        let dir = player.facing;
+        if(intent.left && !intent.right) dir = -1;
+        if(intent.right && !intent.left) dir = 1;
+
+        player.vx = dir * DASH_SPEED;
+      }
+    }
+  }
+
+  function processQueue(now){
+    queue.sort((a,b)=>a.t-b.t);
+    while(queue.length && queue[0].t <= now){
+      applyEvent(queue.shift().kind);
+    }
+  }
+
+  // ================== Physics / Hazards ==================
+  function updateHazards(dt){
+    for(const h of level.hazards){
+      if(h.vx){
+        h.x += h.vx * dt;
+        if(h.x < h.minX){ h.x = h.minX; h.vx *= -1; }
+        if(h.x + h.w > h.maxX){ h.x = h.maxX - h.w; h.vx *= -1; }
+      }
+      if(h.vy){
+        h.y += h.vy * dt;
+        if(h.y < h.minY){ h.y = h.minY; h.vy *= -1; }
+        if(h.y + h.h > h.maxY){ h.y = h.maxY - h.h; h.vy *= -1; }
+      }
+    }
+  }
+
+  function collidePlatformsX(){
+    for(const p of level.platforms){
+      if(rectsOverlap(player, p)){
+        if(player.vx > 0) player.x = p.x - player.w;
+        if(player.vx < 0) player.x = p.x + p.w;
+        player.vx = 0;
+      }
+    }
+  }
+
+  function collidePlatformsY(){
+    player.onGround = false;
+    for(const p of level.platforms){
+      if(rectsOverlap(player, p)){
+        if(player.vy > 0){
+          player.y = p.y - player.h;
+          player.vy = 0;
+          player.onGround = true;
+        }else if(player.vy < 0){
+          player.y = p.y + p.h;
+          player.vy = 0;
+        }
+      }
+    }
+  }
+
+  function completeLevel(){
+    progress[levelIndex] = true;
+    saveProgress();
+    showMenu(); // direkt zurück ins Menü
+  }
+
+  function step(dt){
+    if(state !== "PLAY") return;
+
+    const t = nowMs();
+    processQueue(t);
+
+    if(player.dashCooldown > 0) player.dashCooldown -= dt;
+
+    if(player.dashTimeLeft > 0){
+      player.dashTimeLeft -= dt;
+      if(player.dashTimeLeft <= 0){
+        const dir = (intent.right ? 1 : 0) + (intent.left ? -1 : 0);
+        player.vx = dir * MOVE_SPEED;
+      }
+    }else{
+      const dir = (intent.right ? 1 : 0) + (intent.left ? -1 : 0);
+      player.vx = dir * MOVE_SPEED;
+      if(dir !== 0) player.facing = dir;
+    }
+
+    // Horizontal
+    player.x += player.vx * dt;
+    collidePlatformsX();
+
+    // Gravity
+    player.vy += GRAVITY * dt;
+    player.y += player.vy * dt;
+    collidePlatformsY();
+
+    updateHazards(dt);
+
+    // bounds / fall
+    player.x = clamp(player.x, 0, W - player.w);
+    if(player.y > H + 220) restartLevel();
+
+    // death
+    for(const h of level.hazards){
+      if(rectsOverlap(player, h)) restartLevel();
+    }
+
+    // win
+    if(rectsOverlap(player, level.goal)){
+      completeLevel();
+    }
+  }
+
+  // ================== Lively Background ==================
+  function updateBackground(dt, now){
+    for(const p of particles){
+      p.phase += dt*0.8;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      // gentle swirl
+      p.x += Math.sin(p.phase) * 6 * dt;
+      p.y += Math.cos(p.phase*0.9) * 6 * dt;
+
+      if(p.x < -20) p.x = W+20;
+      if(p.x > W+20) p.x = -20;
+      if(p.y < -20) p.y = H+20;
+      if(p.y > H+20) p.y = -20;
+    }
+  }
+
+  function draw(now){
+    // animated gradient background
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    const t = now * 0.00015;
+    // simple “color cycling”
+    const a = 0.55 + 0.45*Math.sin(t*3.1);
+    const b = 0.55 + 0.45*Math.sin(t*2.2 + 1.7);
+    const c = 0.55 + 0.45*Math.sin(t*2.9 + 3.3);
+
+    g.addColorStop(0,   `rgba(${Math.floor(40+80*a)},${Math.floor(30+60*b)},${Math.floor(70+120*c)},1)`);
+    g.addColorStop(0.5, `rgba(${Math.floor(10+50*b)},${Math.floor(20+40*c)},${Math.floor(30+70*a)},1)`);
+    g.addColorStop(1,   `rgba(${Math.floor(20+70*c)},${Math.floor(10+50*a)},${Math.floor(25+60*b)},1)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+
+    // particles
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = "rgba(199,210,254,0.35)";
+    for(const p of particles){
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // subtle grid
+    ctx.save();
+    ctx.globalAlpha = 0.10;
+    ctx.strokeStyle = "#1e2a3a";
+    for(let x=0;x<=W;x+=48){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0;y<=H;y+=48){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    ctx.restore();
+
+    // goal
+    ctx.fillStyle = "#22c55e";
+    ctx.fillRect(level?.goal.x ?? 0, level?.goal.y ?? 0, level?.goal.w ?? 0, level?.goal.h ?? 0);
+
+    // platforms
+    if(level){
+      ctx.fillStyle = "rgba(51,65,85,0.92)";
+      for(const p of level.platforms) ctx.fillRect(p.x,p.y,p.w,p.h);
+
+      // hazards
+      for(const h of level.hazards){
+        let alpha = 1;
+        if(h.type === "shame"){
+          alpha = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(now * 0.01));
+        }
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = "#ef4444";
+        ctx.fillRect(h.x,h.y,h.w,h.h);
+
+        ctx.globalAlpha = alpha * 0.9;
+        ctx.fillStyle = "rgba(255,255,255,0.65)";
+        ctx.font = "12px system-ui";
+        const symbol = (h.type==="toxic") ? "×" :
+                       (h.type==="doubt") ? "?" :
+                       (h.type==="panic") ? "!" :
+                       (h.type==="shame") ? "…" : "×";
+        ctx.fillText(symbol, h.x + 6, h.y + 14);
+        ctx.restore();
+      }
+    }
+
+    // player
+    if(state==="PLAY"){
+      ctx.fillStyle = player.color;
+      ctx.fillRect(player.x, player.y, player.w, player.h);
+    }
+
+    // HUD
+    ctx.fillStyle = "rgba(199,210,254,0.95)";
+    ctx.font = "14px system-ui";
+    const lvlName = (state==="PLAY") ? LEVELS[levelIndex].name : "Menü";
+    ctx.fillText(`${lvlName}`, 14, 26);
+
+    if(state==="PLAY"){
+      const cd = Math.max(0, player.dashCooldown);
+      ctx.fillText(`Dash CD: ${cd.toFixed(2)}s`, 14, 46);
+
+      const preview = queue.slice().sort((a,b)=>a.t-b.t).slice(0,4)
+        .map(e => `${e.kind.replace("_"," ")} in ${Math.max(0, e.t - now).toFixed(0)}ms`)
+        .join(" | ");
+      ctx.fillText(preview || "—", 14, 66);
+
+      ctx.globalAlpha = 0.85;
+      ctx.fillText(`Input Delay: ${INPUT_DELAY_MS}ms`, W - 170, 26);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ================== Loop ==================
+  let accumulator = 0;
+  let last = nowMs();
+
+  function frame(){
+    const current = nowMs();
+    let delta = (current - last)/1000;
+    last = current;
+    delta = Math.min(delta, 0.05);
+    accumulator += delta;
+
+    updateBackground(delta, current);
+
+    while(accumulator >= FIXED_DT){
+      step(FIXED_DT);
+      accumulator -= FIXED_DT;
+    }
+
+    draw(current);
+    requestAnimationFrame(frame);
+  }
+
+  // Start: Menü zeigen
+  updateMenu();
+  // preload first level for drawing goal etc.
+  loadLevel(0);
+  showMenu();
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
